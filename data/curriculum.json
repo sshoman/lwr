@@ -1,0 +1,130 @@
+[
+  {
+    "id": "C01",
+    "domain": "interface",
+    "title": "silent submit",
+    "scenario": "A user submits a slow form. The request starts but the screen gives no reliable signal. The user clicks again and two submissions are created.",
+    "outcome": "The second action was caused by uncertainty about whether the important state transition had started.",
+    "tags": ["feedback", "async", "duplicate"]
+  },
+  {
+    "id": "C02",
+    "domain": "coding",
+    "title": "unacknowledged command",
+    "scenario": "A service sends a command to a worker but gets no acknowledgement. The caller retries and the job runs twice.",
+    "outcome": "Retry without reliable evidence or idempotency created duplicate work.",
+    "tags": ["acknowledgement", "retry", "async"]
+  },
+  {
+    "id": "C03",
+    "domain": "interface",
+    "title": "fake spinner",
+    "scenario": "A UI replaces a missing result with a spinner that stays visible after the operation already failed. Users think work is still progressing.",
+    "outcome": "Feedback is not automatically useful; misleading feedback can be worse than silence.",
+    "tags": ["feedback", "uncertainty", "failure"]
+  },
+  {
+    "id": "C04",
+    "domain": "coding",
+    "title": "shared state",
+    "scenario": "Three unrelated features mutate one global state object. A change for one feature causes a stale value in another feature.",
+    "outcome": "Independent changes became difficult to reason about because ownership was shared.",
+    "tags": ["state", "ownership", "coupling"]
+  },
+  {
+    "id": "C05",
+    "domain": "interface",
+    "title": "expert controls",
+    "scenario": "A power-user tool exposes twenty controls on one screen. Reducing the choices makes experts slower because they intentionally use many controls together.",
+    "outcome": "Fewer choices are not universally better; the cost of choice depends on user expertise and task structure.",
+    "tags": ["choice", "expert", "complexity"]
+  },
+  {
+    "id": "C06",
+    "domain": "coding",
+    "title": "valid transaction",
+    "scenario": "Two database changes are implemented separately for cleanliness, but they must commit together or the system enters an invalid state.",
+    "outcome": "Separation is useful only when the things can actually change independently.",
+    "tags": ["transaction", "coupling", "boundaries"]
+  },
+  {
+    "id": "C07",
+    "domain": "interface",
+    "title": "confirmation fatigue",
+    "scenario": "A product asks for confirmation before every change. Users click through warnings without reading them.",
+    "outcome": "Friction should not be applied uniformly; repeated low-consequence confirmations become noise.",
+    "tags": ["friction", "confirmation", "consequence"]
+  },
+  {
+    "id": "C08",
+    "domain": "coding",
+    "title": "irreversible migration",
+    "scenario": "A destructive database migration is allowed without an explicit checkpoint or rollback path.",
+    "outcome": "Higher consequence and lower reversibility justify more friction and stronger safeguards.",
+    "tags": ["friction", "migration", "reversibility"]
+  },
+  {
+    "id": "C09",
+    "domain": "interface",
+    "title": "premature abstraction",
+    "scenario": "A design system turns two similar screens into one generic component. Later their behaviors diverge and the shared abstraction becomes hard to change.",
+    "outcome": "Abstraction is not automatically good; it is useful when the underlying behavior is actually shared.",
+    "tags": ["abstraction", "coupling", "change"]
+  },
+  {
+    "id": "C10",
+    "domain": "coding",
+    "title": "helpful duplication",
+    "scenario": "Two small pieces of code are kept separate because their future changes are independent. A forced shared abstraction would add coordination cost.",
+    "outcome": "Duplication can be cheaper when independent change is more valuable than reuse.",
+    "tags": ["abstraction", "independence", "coupling"]
+  },
+  {
+    "id": "C11",
+    "domain": "interface",
+    "title": "recoverable edit",
+    "scenario": "A text editor auto-saves every keystroke and provides easy undo. It does not ask for confirmation before edits.",
+    "outcome": "Low consequence and high reversibility make extra friction unnecessary.",
+    "tags": ["friction", "reversibility", "undo"]
+  },
+  {
+    "id": "C12",
+    "domain": "coding",
+    "title": "idempotent retry",
+    "scenario": "A service retries a request because the response was delayed, but the operation is idempotent and produces the same final state once or twice.",
+    "outcome": "Retry is not intrinsically dangerous; its effect depends on state transition semantics.",
+    "tags": ["retry", "idempotency", "async"]
+  },
+  {
+    "id": "C13",
+    "domain": "interface",
+    "title": "irrelevant progress",
+    "scenario": "A tiny local rename takes 20 milliseconds. Adding a progress indicator makes the interface feel slower.",
+    "outcome": "Feedback has a cost and should match the uncertainty and duration users actually need to resolve.",
+    "tags": ["feedback", "latency", "noise"]
+  },
+  {
+    "id": "C14",
+    "domain": "coding",
+    "title": "independent cache",
+    "scenario": "Two subsystems have unrelated cache lifecycles but share one invalidation mechanism. A change in one cache causes broad invalidation.",
+    "outcome": "Shared ownership creates coupling even when the underlying concerns change independently.",
+    "tags": ["cache", "ownership", "coupling"]
+  },
+  {
+    "id": "C15",
+    "domain": "interface",
+    "title": "destructive bulk action",
+    "scenario": "A bulk delete can remove thousands of records and has no undo. The UI adds an explicit checkpoint and clear consequence information.",
+    "outcome": "Higher consequence and lower reversibility justify stronger friction.",
+    "tags": ["friction", "destructive", "bulk"]
+  },
+  {
+    "id": "C16",
+    "domain": "coding",
+    "title": "partial failure",
+    "scenario": "A pipeline hides which stage failed. Operators retry the whole pipeline and unknowingly repeat stages that already succeeded.",
+    "outcome": "Hidden state makes the next action less reliable and increases accidental repetition.",
+    "tags": ["failure", "observability", "retry"]
+  }
+]

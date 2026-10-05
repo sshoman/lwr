@@ -1,0 +1,8 @@
+[project]
+name = "agentic-learning-without-retention"
+version = "0.1.0"
+description = "A replication harness for Agentic Learning Without Retention"
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

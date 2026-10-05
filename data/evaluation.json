@@ -1,0 +1,142 @@
+[
+  {
+    "id": "E01",
+    "domain": "workflow",
+    "scenario": "A payment request may take 8 seconds. The client shows no state change after submit, and a second click can create a second request. What should you prioritize?",
+    "choices": [
+      "A: Make the button smaller.",
+      "B: Give reliable evidence that the important state transition started and prevent unsafe duplicate submission.",
+      "C: Add a generic spinner even when the request status is unknown."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Novel surface, familiar structure: uncertain state transition plus duplicate action."
+  },
+  {
+    "id": "E02",
+    "domain": "deployment",
+    "scenario": "A deployment endpoint can be retried after a timeout, but the same release can safely be submitted twice because the operation is idempotent. What matters most?",
+    "choices": [
+      "A: Never retry any timed-out request.",
+      "B: Decide based on the state-transition semantics and whether repetition is safe.",
+      "C: Always add a confirmation dialog before retrying."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Transfer of retry/idempotency structure into deployments."
+  },
+  {
+    "id": "E03",
+    "domain": "analytics",
+    "scenario": "A dashboard lets advanced analysts combine many filters. A redesign removes most controls to make the screen simpler, but analysts now need many extra clicks. What is the right conclusion?",
+    "choices": [
+      "A: Fewer controls are always better.",
+      "B: Choice cost depends on the user and task; expert workflows can justify high control density.",
+      "C: Complexity should always be hidden behind automation."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Counterexample transfer against a simplistic fewer-choices rule."
+  },
+  {
+    "id": "E04",
+    "domain": "data pipeline",
+    "scenario": "A pipeline has four independent stages. A shared status object makes it impossible to tell which stage owns a stale value. What should you change first?",
+    "choices": [
+      "A: Put more fields into the shared object.",
+      "B: Separate ownership and state for independently changing stages.",
+      "C: Add more retries without changing state ownership."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Cross-domain transfer of independent change versus shared ownership."
+  },
+  {
+    "id": "E05",
+    "domain": "access control",
+    "scenario": "A permission change can be undone within one minute. Asking for confirmation on every toggle frustrates administrators. What should friction depend on?",
+    "choices": [
+      "A: Whether the button looks important.",
+      "B: Consequence and reversibility.",
+      "C: The number of previous confirmations shown."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Novel surface, transfer of consequence/reversibility principle."
+  },
+  {
+    "id": "E06",
+    "domain": "config editor",
+    "scenario": "Two settings look similar today but are likely to evolve independently. Should they be forced into one generic configuration abstraction?",
+    "choices": [
+      "A: Yes, because reuse is always better.",
+      "B: Only if their behavior and change boundaries are actually shared.",
+      "C: Yes, because duplicate code is always worse than coupling."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Abstraction transfer into configuration design."
+  },
+  {
+    "id": "E07",
+    "domain": "command line",
+    "scenario": "A local command completes in 15 milliseconds. Users know it succeeded because the terminal prompt returns immediately. Should the tool add a progress animation?",
+    "choices": [
+      "A: Yes, all actions need visible animation.",
+      "B: No, feedback should address meaningful uncertainty rather than add noise.",
+      "C: Yes, because silence always causes duplicate actions."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Boundary case that should prevent over-generalizing the feedback principle."
+  },
+  {
+    "id": "E08",
+    "domain": "backup",
+    "scenario": "A backup deletion permanently removes customer data and has no undo. Which interaction is most defensible?",
+    "choices": [
+      "A: One-click delete with no warning.",
+      "B: Strong checkpoint and clear consequence before the irreversible action.",
+      "C: Hide the delete action completely from operators."
+    ],
+    "gold_choice": "B",
+    "transfer": true,
+    "exact_recall": false,
+    "explanation": "Novel surface, high consequence and low reversibility."
+  },
+  {
+    "id": "E09",
+    "domain": "training recall",
+    "scenario": "Which earlier training case involved a fake spinner that created false confidence?",
+    "choices": [
+      "A: C03",
+      "B: C08",
+      "C: C14"
+    ],
+    "gold_choice": "A",
+    "transfer": false,
+    "exact_recall": true,
+    "explanation": "Exact recall should favor systems that retain raw episodes."
+  },
+  {
+    "id": "E10",
+    "domain": "training recall",
+    "scenario": "Which earlier training case involved an idempotent retry?",
+    "choices": [
+      "A: C04",
+      "B: C12",
+      "C: C15"
+    ],
+    "gold_choice": "B",
+    "transfer": false,
+    "exact_recall": true,
+    "explanation": "Exact recall should favor systems that retain raw episodes."
+  }
+]
