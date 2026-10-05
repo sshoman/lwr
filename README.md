@@ -65,7 +65,7 @@ python run_experiment.py --base-url http://localhost:8000/v1 --model your-local-
 
 The experiment writes a full JSON result containing the experiences, guesses, every refutation, principles, world model, and scores for all four conditions.
 
-A deterministic `--mock` mode exists, but only to smoke-test that the harness wiring works without an API key. It does not run the experiment.
+
 
 ## The result I actually care about
 

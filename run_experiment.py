@@ -12,7 +12,6 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Run the Agentic Learning Without Retention experiment.")
     p.add_argument("--data", default="data")
     p.add_argument("--out", default="results/latest.json")
-    p.add_argument("--mock", action="store_true")
     p.add_argument("--model", default=None)
     p.add_argument("--base-url", default=None)
     p.add_argument("--max-guesses", type=int, default=6)
@@ -25,7 +24,7 @@ def main() -> None:
         base_url=args.base_url or __import__("os").getenv("LWR_BASE_URL", "https://api.openai.com/v1"),
         api_key=__import__("os").getenv("OPENAI_API_KEY"),
     )
-    client = LLMClient(config=config, mock=args.mock)
+    client = LLMClient(config=config)
     exp = LWRExperiment(args.data, client, args.max_guesses, args.refutations_per_guess, args.top_k)
     result = exp.run()
     save_result(result, args.out)
