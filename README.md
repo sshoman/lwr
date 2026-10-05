@@ -1,6 +1,6 @@
 # Agentic Learning Without Retention
 
-This is a replication of the experiment from **Agentic Learning Without Retention: Turning Domain Experience into Transferable Understanding**.
+This is a replication of the experiment from the **Agentic Learning Without Retention: Turning Domain Experience into Transferable Understanding** paper.
 
 The basic idea is pretty simple.
 
