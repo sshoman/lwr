@@ -51,7 +51,7 @@ try {
         throw "Expected exactly one deprecated Gemini 3.8 temperature setting; found $($deprecatedTemperature.Count)."
     }
     $runnerSource = [regex]::Replace($runnerSource, '(?m)^\s*"temperature":\s*0\.1,\r?\n', '')
-    [System.IO.File]::WriteAllText($runner, $runnerSource, (New-Object System.Text.UTF8Encoding($false)))
+    [System.IO.File]::WriteAllText($runner, $runnerSource, [System.Text.UTF8Encoding]::new($false))
     Write-Host 'Applied Gemini 3.8 compatibility fix: removed deprecated temperature parameter.'
 
     $runStamp = Get-Date -Format 'yyyyMMdd_HHmmss'
