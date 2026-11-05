@@ -32,9 +32,11 @@ Use this one command from any folder:
 irm https://raw.githubusercontent.com/sshoman/lwr/main/run.ps1 | iex
 ```
 
-The script downloads the current repository to a temporary folder, checks for Python 3.10+, and starts Test 001. The Python runner asks for the Gemini API key using a hidden prompt if `GEMINI_API_KEY` is not already set. The key is not saved to disk or printed. Results are written to `shaman-results/` in the folder where the command was run.
+The launcher fetches the small Test 001 runner directly from this repository as seven text chunks, checks the reconstructed archive against a fixed SHA-256 hash, and then runs it from a temporary folder. It does not clone the repository or require you to download a project manually.
 
-No pip packages are needed. The runner uses Python's standard library.
+The Python runner asks for the Gemini API key using a hidden prompt if `GEMINI_API_KEY` or `GOOGLE_API_KEY` is not already set. The key is sent in the `x-goog-api-key` header. It is not saved to disk or printed. Results are written to `shaman-results/` in the folder where the command was run.
+
+Python 3.10+ is required. No pip packages are needed. The runner uses Python's standard library.
 
 Defaults: `gemini-3.8-flash`, 12 worlds, 12 held-out transfer decisions per world, four Shaman-selected challenge cases per world, and four random challenge cases per world. The run records token usage, rejected claims, and false promotions. A run stops early if the API reports quota or authentication failure. Partial records are saved as it proceeds.
 

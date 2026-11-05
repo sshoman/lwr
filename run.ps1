@@ -1,69 +1,66 @@
 $ErrorActionPreference = 'Stop'
 
-$repo = 'https://github.com/sshoman/lwr/archive/refs/heads/main.zip'
-$tempRoot = Join-Path $env:TEMP ('shaman-tests-' + [guid]::NewGuid().ToString('N'))
-$zipPath = Join-Path $tempRoot 'repo.zip'
-$extractPath = Join-Path $tempRoot 'repo'
+$baseUrl = 'https://raw.githubusercontent.com/sshoman/lwr/main/tests/test_001_refutation_transfer/source_parts/'
+$parts = @('part01.b64', 'part02.b64', 'part03.b64', 'part04.b64', 'part05.b64', 'part06.b64', 'part07.b64')
+$expectedLength = 14076
+$expectedSha256 = 'd75419f8f4631cc181e00474993457f49c4ae057cfff36efdfefee7a9a69c1f5'
+
+$tempRoot = Join-Path $env:TEMP ('shaman-test001-' + [guid]::NewGuid().ToString('N'))
+$extractPath = Join-Path $tempRoot 'runner'
+$zipPath = Join-Path $tempRoot 'runner.zip'
 
 try {
     New-Item -ItemType Directory -Path $tempRoot -Force | Out-Null
-    Write-Host 'Downloading Shaman experiments from GitHub...'
-    Invoke-WebRequest -Uri $repo -OutFile $zipPath
-    Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
 
-    $repoRoot = Get-ChildItem -LiteralPath $extractPath -Directory | Select-Object -First 1
-    if (-not $repoRoot) { throw 'Could not find the downloaded repository folder.' }
-
-    $bundle = Join-Path $repoRoot.FullName 'tests/test_001_refutation_transfer/source_bundle.zip'
-    if (-not (Test-Path $bundle)) { throw 'Test 001 source bundle is missing from the downloaded repository.' }
-
-    # ZIP permits a comment after its end record. Find the EOCD and trim only
-    # bytes beyond the declared comment, avoiding parser failures from stray
-    # trailing data in a stored archive.
-    $bundleBytes = [System.IO.File]::ReadAllBytes($bundle)
-    $eocd = -1
-    $minOffset = [Math]::Max(0, $bundleBytes.Length - 65557)
-    for ($i = $bundleBytes.Length - 22; $i -ge $minOffset; $i--) {
-        if ($bundleBytes[$i] -eq 0x50 -and $bundleBytes[$i + 1] -eq 0x4b -and
-            $bundleBytes[$i + 2] -eq 0x05 -and $bundleBytes[$i + 3] -eq 0x06) {
-            $eocd = $i
-            break
+    $encoded = New-Object System.Text.StringBuilder
+    foreach ($part in $parts) {
+        $partPath = Join-Path $tempRoot $part
+        Write-Host "Fetching $part from GitHub..."
+        Invoke-WebRequest -Uri ($baseUrl + $part) -OutFile $partPath
+        $chunk = [System.IO.File]::ReadAllText($partPath).Trim()
+        if ($chunk -notmatch '^[A-Za-z0-9+/]+={0,2}$') {
+            throw "Downloaded source part $part contains invalid base64 characters."
         }
-    }
-    if ($eocd -lt 0) { throw 'Test 001 source bundle is not a valid ZIP archive.' }
-    $commentLength = [BitConverter]::ToUInt16($bundleBytes, $eocd + 20)
-    $validLength = $eocd + 22 + $commentLength
-    if ($validLength -gt $bundleBytes.Length) { throw 'Test 001 source bundle has a truncated ZIP comment.' }
-    if ($validLength -lt $bundleBytes.Length) {
-        $cleanBundle = Join-Path $tempRoot 'source_bundle_clean.zip'
-        $cleanBytes = New-Object byte[] $validLength
-        [Array]::Copy($bundleBytes, 0, $cleanBytes, 0, $validLength)
-        [System.IO.File]::WriteAllBytes($cleanBundle, $cleanBytes)
-        $bundle = $cleanBundle
+        [void]$encoded.Append($chunk)
     }
 
-    Expand-Archive -LiteralPath $bundle -DestinationPath $repoRoot.FullName -Force
+    $base64 = $encoded.ToString()
+    if ($base64.Length -ne $expectedLength) {
+        throw "Source length check failed. Expected $expectedLength base64 characters, received $($base64.Length)."
+    }
 
-    $runner = Join-Path $repoRoot.FullName 'tests/test_001_refutation_transfer/run.py'
-    if (-not (Test-Path $runner)) { throw 'Test 001 runner is missing from the extracted source bundle.' }
+    $archiveBytes = [Convert]::FromBase64String($base64)
+    [System.IO.File]::WriteAllBytes($zipPath, $archiveBytes)
+    $actualSha256 = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($actualSha256 -ne $expectedSha256) {
+        throw "Source integrity check failed. The downloaded runner does not match the published test."
+    }
+
+    Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force
+    $runner = Join-Path $extractPath 'run.py'
+    if (-not (Test-Path $runner)) {
+        throw 'Test 001 runner was not found inside the verified archive.'
+    }
 
     $runStamp = Get-Date -Format 'yyyyMMdd_HHmmss'
     $outputDir = Join-Path (Get-Location) ("shaman-results/test_001/run_$runStamp")
-    Push-Location $repoRoot.FullName
-    try {
-        $py = Get-Command py -ErrorAction SilentlyContinue
-        if ($py) {
-            & $py.Source -3 -m tests.test_001_refutation_transfer.run --out $outputDir
-        } else {
-            $python = Get-Command python -ErrorAction SilentlyContinue
-            if (-not $python) { throw 'Python 3.10 or newer is required. Install Python, then run this same command again.' }
-            & $python.Source -m tests.test_001_refutation_transfer.run --out $outputDir
+
+    $py = Get-Command py -ErrorAction SilentlyContinue
+    if ($py) {
+        & $py.Source -3 $runner --out $outputDir
+    } else {
+        $python = Get-Command python -ErrorAction SilentlyContinue
+        if (-not $python) {
+            throw 'Python 3.10 or newer is required. Install Python and run the same command again.'
         }
-    } finally {
-        Pop-Location
+        & $python.Source $runner --out $outputDir
     }
 
-    if ($LASTEXITCODE -ne 0) { throw "Test 001 exited with code $LASTEXITCODE. Check the partial report in shaman-results/test_001." }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Test 001 exited with code $LASTEXITCODE. Any partial report is in $outputDir."
+    }
 } finally {
-    if (Test-Path $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue }
+    if (Test-Path $tempRoot) {
+        Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
