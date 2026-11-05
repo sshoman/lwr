@@ -46,6 +46,87 @@ try {
     # Keep the archive checksum check above intact, then patch the extracted
     # temporary runner before execution.
     $runnerSource = [System.IO.File]::ReadAllText($runner)
+
+    # Follow Google's documented key-variable precedence.
+    $runnerSource = $runnerSource.Replace(
+        'self.key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")',
+        'self.key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")'
+    )
+
+    # Add a no-token model-list probe so API-key/project failures are separated
+    # from text-generation request failures.
+    $probeAnchor = '    def ask(self, system: str, user: str, max_tokens: int = 4500) -> dict:'
+    $probeMethod = @'
+    def check_models(self) -> dict:
+        url = "https://generativelanguage.googleapis.com/v1beta/models"
+        req = request.Request(
+            url, method="GET",
+            headers={"Accept": "application/json", "x-goog-api-key": self.key},
+        )
+        self.usage["requests"] += 1
+        try:
+            with request.urlopen(req, timeout=45) as res:
+                payload = json.loads(res.read().decode("utf-8"))
+            self.usage["successful_requests"] += 1
+            models = payload.get("models") or []
+            return {
+                "ok": True,
+                "models_returned": len(models),
+                "requested_model_listed": any(
+                    str(x.get("name", "")).endswith("/" + self.model)
+                    for x in models if isinstance(x, dict)
+                ),
+            }
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:1200]
+            content_type = exc.headers.get("Content-Type", "unknown") if exc.headers else "unknown"
+            raise RuntimeError(
+                f"Gemini model-list probe HTTP {exc.code} ({content_type}): {detail}"
+            ) from exc
+
+'@
+    if (-not $runnerSource.Contains($probeAnchor)) {
+        throw 'Could not find Gemini ask method to insert the model-list diagnostic.'
+    }
+    $runnerSource = $runnerSource.Replace($probeAnchor, $probeMethod + $probeAnchor)
+
+    # Make preflight use the smallest valid request: contents only, no system
+    # instruction and no generation settings.
+    $preflightAnchor = '        req = request.Request('
+    $minimalBodyPatch = @'
+        if system == "__MINIMAL_PREFLIGHT__":
+            body = {"contents": [{"role": "user", "parts": [{"text": user}]}]}
+'@
+    $firstReqIndex = $runnerSource.IndexOf($preflightAnchor)
+    if ($firstReqIndex -lt 0) {
+        throw 'Could not find the Gemini request construction point.'
+    }
+    $runnerSource = $runnerSource.Insert($firstReqIndex, $minimalBodyPatch)
+
+    $runnerSource = $runnerSource.Replace(
+        'preflight = client.ask("Return JSON only.", "Return exactly {\\"ready\\":true}.", 80)',
+        'preflight = client.ask("__MINIMAL_PREFLIGHT__", "Return exactly {\\"ready\\":true}.", 80)'
+    )
+    # The runner source uses normal Python JSON quoting, not PowerShell-escaped
+    # quote characters. Apply a second literal form for that exact source line.
+    $runnerSource = $runnerSource.Replace(
+        'preflight = client.ask("Return JSON only.", "Return exactly {\"ready\":true}.", 80)',
+        'preflight = client.ask("__MINIMAL_PREFLIGHT__", "Return exactly {\"ready\":true}.", 80)'
+    )
+
+    $mainProbeAnchor = '        preflight = client.ask("__MINIMAL_PREFLIGHT__", "Return exactly {\"ready\":true}.", 80)'
+    $mainProbe = @'
+        print("Checking Gemini API key and model-list endpoint...", flush=True)
+        report["api_model_probe"] = client.check_models()
+        report["api_usage"] = client.usage
+        save(out / "report.json", report)
+        print("Model-list probe passed. Checking one minimal generation request...", flush=True)
+'@
+    if ($runnerSource.Contains($mainProbeAnchor)) {
+        $runnerSource = $runnerSource.Replace($mainProbeAnchor, $mainProbe.TrimEnd() + "`n" + $mainProbeAnchor)
+    } else {
+        throw 'Could not locate the preflight call to attach the model-list diagnostic.'
+    }
     $deprecatedTemperature = [regex]::Matches($runnerSource, '(?m)^\s*"temperature":\s*0\.1,\r?\n')
     if ($deprecatedTemperature.Count -ne 1) {
         throw "Expected exactly one deprecated Gemini 3.8 temperature setting; found $($deprecatedTemperature.Count)."
