@@ -1,4 +1,8 @@
 __pycache__/
+*.py[cod]
 .pytest_cache/
-results/
 .env
+.env.*
+!.env.example
+shaman-results/
+results/

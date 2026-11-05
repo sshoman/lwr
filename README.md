@@ -1,86 +1,55 @@
-# Agentic Learning Without Retention
+# Shaman experiments
 
-This is a replication of the experiment from the **Agentic Learning Without Retention: Turning Domain Experience into Transferable Understanding** paper.
+This repository contains research tests only. It is not the CI 1on1 application and it is not a product runtime.
 
-The basic idea is pretty simple.
+Every experiment lives in its own directory under `tests/`. Each directory owns its benchmark, prompts, runner, scoring rules, and report format. Shared infrastructure belongs in `tests/shared/` only when two completed experiments genuinely need the same code.
 
-We keep trying to make generalist agents by giving them more memory. More examples, more context, more past experiences, more stuff to retrieve.
+## Test 001: independent refutation and transfer
 
-This experiment asks a different question:
+`tests/test_001_refutation_transfer/` is the first LLM-backed pilot of Shaman's central claim.
 
-**What happens when the agent learns from those experiences, turns them into principles, and then loses access to the original experiences?**
+The experiment creates independent hidden simulator worlds. Gemini receives observed experiences, proposes up to three conditional claims, and chooses four challenge cases intended to break those claims. The test runner executes those cases against the simulator. It does not ask Gemini to judge its own answers. The evaluator compares frozen predictions with the simulator's actual outcomes and writes evidence certificates.
 
-The paper's architecture is:
+A separate receiving context gets one of several memory conditions and makes decisions on unseen cases from new task families. Gold outcomes are withheld from every model prompt and used only by the local evaluator.
 
-**Experience → Guess → Refutation → Principle → World Model → Forget**
+Memory conditions:
 
-The important part is that forgetting happens last. We are not deleting random memories and hoping intelligence appears. Shaman first looks across the experience, makes guesses about what is going on, tries to kill those guesses, and only lets the surviving structure become part of the persistent world model.
+1. No memory.
+2. Original episodes.
+3. Ordinary summary.
+4. Unrefuted candidate claims.
+5. Claims that passed randomly selected tests.
+6. Claims that passed Shaman's adversarially selected tests, without source episodes.
+7. The same Shaman model with source episodes retained, as the forgetting ablation.
 
-## The test
+The first run is a pilot across 12 independently seeded worlds. It is useful for finding failures in the method, not enough to establish a broad research claim. The report includes per-world results, confidence intervals, rejected claims, invalid test plans, model usage, and the sealed simulator truth. Do not quote aggregate results without the limitations in the report.
 
-The experiment has four conditions.
+## Run from Windows PowerShell
 
-1. **base**
-   The base generalist gets no special reflective memory.
+Use this one command from any folder:
 
-2. **summary**
-   The same experience is compressed into an ordinary summary. This is the boring memory baseline we should beat if the full reflective process is actually doing something useful.
-
-3. **reflective_retention**
-   Shaman runs exactly the same reflection process as the forgetting condition, but the old experiences stay available.
-
-4. **reflective_forgetting**
-   Same Shaman work, same guesses, same refutations, same principles, same ranking, same world model. The only important difference is that the old experiences are removed from normal retrieval after the reflective stage.
-
-The third and fourth conditions are the real experiment.
-
-If reflective forgetting is useful, it should lose some exact recall while doing better on some unfamiliar transfer tasks. If it only ties retention, then forgetting did not add anything. If it beats retention only because retrieval became cleaner, then we probably built a retrieval trick rather than the learning process described in the paper.
-
-## What is in the benchmark
-
-The training curriculum is deliberately split between **coding** and **interface design**.
-
-The domains look different, but some of the structures underneath them overlap: asynchronous state, retries, ownership, coupling, feedback, uncertainty, reversibility, friction, abstraction, and independent change.
-
-The curriculum also contains counterexamples. A simple rule should get attacked by a case where the rule stops working.
-
-That matters because the paper is not trying to reward the model for finding the same answer over and over. Shaman is supposed to get uncomfortable.
-
-The evaluation then uses new surfaces that were not in the curriculum. There are also a few exact-recall questions on purpose. We want the experiment to show the trade-off instead of quietly defining success as “the thing that forgets wins.”
-
-## Run it
-
-For a real run, point it at any OpenAI-compatible chat-completions endpoint:
-
-```bash
-set OPENAI_API_KEY=your_key
-python run_experiment.py --model your-model
+```powershell
+irm https://raw.githubusercontent.com/sshoman/lwr/main/run.ps1 | iex
 ```
 
-You can also change the endpoint:
+The script downloads the current repository to a temporary folder, checks for Python 3.10+, and starts Test 001. The Python runner asks for the Gemini API key using a hidden prompt if `GEMINI_API_KEY` is not already set. The key is not saved to disk or printed. Results are written to `shaman-results/` in the folder where the command was run.
 
-```bash
-python run_experiment.py --base-url http://localhost:8000/v1 --model your-local-model
-```
+No pip packages are needed. The runner uses Python's standard library.
 
-The experiment writes a full JSON result containing the experiences, guesses, every refutation, principles, world model, and scores for all four conditions.
+Defaults: `gemini-3.8-flash`, 12 worlds, 12 held-out transfer decisions per world, four Shaman-selected challenge cases per world, and four random challenge cases per world. The run records token usage, rejected claims, and false promotions. A run stops early if the API reports quota or authentication failure. Partial records are saved as it proceeds.
 
+## What Test 001 can and cannot show
 
+It can test whether an LLM can infer a conditional mechanism from observed outcomes, propose tests intended to distinguish competing explanations, survive objective simulator checks, and pass useful knowledge to a new LLM context without the source episodes.
 
-## The result I actually care about
+It cannot establish that Shaman works across arbitrary real-world agents or domains. The first benchmark uses a controlled synthetic environment with a deliberately limited claim language. Its purpose is to test the core loop without letting the model grade itself. A later experiment must use real coding and design tasks, independent task evaluators, and a larger preregistered sample.
 
-Do not look only at the final score.
+## Repository rules
 
-The interesting result is the shape of the trade-off:
-
-**less exact recall → less dependence on old episodes → more use of transferable principles → better unfamiliar transfer**
-
-That is the thing this paper is actually claiming.
-
-If the numbers do not show that, the experiment should make that obvious.
-
-## One important limitation
-
-The paper deliberately leaves the final real-world beta system unspecified. So this repo implements the **published experimental design**, using a reproducible synthetic transfer suite based on the curriculum and evaluation described in the paper. It is a replication harness, not a claim that this synthetic benchmark is the final proof of the idea.
-
-The final beta described by the paper can be added as another evaluation suite without changing the four-condition logic.
+- One experiment per `tests/test_NNN_name/` directory.
+- Keep benchmark truth separate from model-visible prompts.
+- Register candidate versions and predictions before executing a test.
+- Test runners return raw observations; evaluators do not rewrite them.
+- Invalid tests count as neither support nor refutation.
+- Never use model-written confidence or self-assigned quality scores as promotion evidence.
+- Never commit API keys, local results, or environment files.
