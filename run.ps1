@@ -16,6 +16,32 @@ try {
 
     $bundle = Join-Path $repoRoot.FullName 'tests/test_001_refutation_transfer/source_bundle.zip'
     if (-not (Test-Path $bundle)) { throw 'Test 001 source bundle is missing from the downloaded repository.' }
+
+    # ZIP permits a comment after its end record. Find the EOCD and trim only
+    # bytes beyond the declared comment, avoiding parser failures from stray
+    # trailing data in a stored archive.
+    $bundleBytes = [System.IO.File]::ReadAllBytes($bundle)
+    $eocd = -1
+    $minOffset = [Math]::Max(0, $bundleBytes.Length - 65557)
+    for ($i = $bundleBytes.Length - 22; $i -ge $minOffset; $i--) {
+        if ($bundleBytes[$i] -eq 0x50 -and $bundleBytes[$i + 1] -eq 0x4b -and
+            $bundleBytes[$i + 2] -eq 0x05 -and $bundleBytes[$i + 3] -eq 0x06) {
+            $eocd = $i
+            break
+        }
+    }
+    if ($eocd -lt 0) { throw 'Test 001 source bundle is not a valid ZIP archive.' }
+    $commentLength = [BitConverter]::ToUInt16($bundleBytes, $eocd + 20)
+    $validLength = $eocd + 22 + $commentLength
+    if ($validLength -gt $bundleBytes.Length) { throw 'Test 001 source bundle has a truncated ZIP comment.' }
+    if ($validLength -lt $bundleBytes.Length) {
+        $cleanBundle = Join-Path $tempRoot 'source_bundle_clean.zip'
+        $cleanBytes = New-Object byte[] $validLength
+        [Array]::Copy($bundleBytes, 0, $cleanBytes, 0, $validLength)
+        [System.IO.File]::WriteAllBytes($cleanBundle, $cleanBytes)
+        $bundle = $cleanBundle
+    }
+
     Expand-Archive -LiteralPath $bundle -DestinationPath $repoRoot.FullName -Force
 
     $runner = Join-Path $repoRoot.FullName 'tests/test_001_refutation_transfer/run.py'
