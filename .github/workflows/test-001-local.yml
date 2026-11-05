@@ -1,0 +1,167 @@
+name: Test 001 local-model replication
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/test-001-local.yml"
+      - "tests/test_001_refutation_transfer/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-001-local-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-001:
+    name: Run 12-world refutation and transfer pilot
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Check out experiment
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Rebuild and verify the published runner archive
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          import hashlib
+          import io
+          import zipfile
+          from pathlib import Path
+
+          parts_dir = Path("tests/test_001_refutation_transfer/source_parts")
+          parts = sorted(parts_dir.glob("part*.b64"))
+          if len(parts) != 7:
+              raise SystemExit(f"Expected 7 source chunks, found {len(parts)}")
+
+          encoded = "".join(p.read_text(encoding="ascii").strip() for p in parts)
+          if len(encoded) != 14076:
+              raise SystemExit(f"Chunk length mismatch: {len(encoded)}")
+          archive = base64.b64decode(encoded, validate=True)
+          digest = hashlib.sha256(archive).hexdigest()
+          expected = "d75419f8f4631cc181e00474993457f49c4ae057cfff36efdfefee7a9a69c1f5"
+          if digest != expected:
+              raise SystemExit(f"Runner archive SHA-256 mismatch: {digest}")
+
+          with zipfile.ZipFile(io.BytesIO(archive)) as zf:
+              bad_member = zf.testzip()
+              if bad_member:
+                  raise SystemExit(f"ZIP member failed CRC: {bad_member}")
+              source = zf.read("run.py")
+
+          runner_dir = Path("runner")
+          runner_dir.mkdir(exist_ok=True)
+          (runner_dir / "run.py").write_bytes(source)
+          compile(source, "runner/run.py", "exec")
+          print(f"Verified runner archive SHA-256: {digest}")
+          print(f"Extracted and syntax-checked runner ({len(source)} bytes)")
+          PY
+
+      - name: Build llama.cpp CPU server
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/ggml-org/llama.cpp.git "$RUNNER_TEMP/llama.cpp"
+          cmake -S "$RUNNER_TEMP/llama.cpp" -B "$RUNNER_TEMP/llama.cpp/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DGGML_NATIVE=OFF \
+            -DLLAMA_BUILD_TESTS=OFF \
+            -DLLAMA_BUILD_EXAMPLES=OFF
+          cmake --build "$RUNNER_TEMP/llama.cpp/build" \
+            --config Release --parallel 4 --target llama-server
+
+      - name: Download Qwen3-4B quantized model
+        shell: bash
+        run: |
+          python -m pip install --upgrade "huggingface_hub>=0.34,<1.0"
+          mkdir -p "$RUNNER_TEMP/model"
+          python - <<'PY'
+          import os
+          from huggingface_hub import hf_hub_download
+
+          path = hf_hub_download(
+              repo_id="Qwen/Qwen3-4B-GGUF",
+              filename="Qwen3-4B-Q4_K_M.gguf",
+              local_dir=os.path.join(os.environ["RUNNER_TEMP"], "model"),
+          )
+          print(f"Model downloaded: {path}")
+          PY
+
+      - name: Start local model server
+        shell: bash
+        run: |
+          MODEL="$RUNNER_TEMP/model/Qwen3-4B-Q4_K_M.gguf"
+          SERVER="$RUNNER_TEMP/llama.cpp/build/bin/llama-server"
+          if [ ! -f "$MODEL" ]; then echo "Model file missing: $MODEL"; exit 1; fi
+          if [ ! -x "$SERVER" ]; then echo "llama-server missing: $SERVER"; exit 1; fi
+
+          "$SERVER" \
+            --model "$MODEL" \
+            --alias Qwen3-4B-GGUF-Q4_K_M \
+            --host 127.0.0.1 \
+            --port 8080 \
+            --ctx-size 8192 \
+            --threads 4 \
+            --threads-batch 4 \
+            --jinja \
+            --reasoning off \
+            > "$RUNNER_TEMP/llama-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/llama-server.pid"
+
+          for attempt in $(seq 1 120); do
+            if curl --silent --fail http://127.0.0.1:8080/health >/dev/null; then
+              echo "Local model server is ready."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Local model server did not become ready. Server log:"
+          cat "$RUNNER_TEMP/llama-server.log"
+          exit 1
+
+      - name: Run Test 001
+        shell: bash
+        env:
+          SHAMAN_GEMINI_RUNNER: runner/run.py
+          SHAMAN_OUTPUT_DIR: shaman-results/test_001_local
+          SHAMAN_MODEL_ID: Qwen3-4B-GGUF-Q4_K_M
+          SHAMAN_LOCAL_LLM_URL: http://127.0.0.1:8080/v1/chat/completions
+          SHAMAN_WORLDS: "12"
+          SHAMAN_SEED: "20261105"
+        run: |
+          python tests/test_001_refutation_transfer/local_entry.py
+
+      - name: Add report summary to workflow
+        if: always()
+        shell: bash
+        run: |
+          REPORT="shaman-results/test_001_local/summary.md"
+          if [ -f "$REPORT" ]; then
+            cat "$REPORT" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No experiment summary was produced." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f "$RUNNER_TEMP/llama-server.log" ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Model server log tail:" >> "$GITHUB_STEP_SUMMARY"
+            tail -n 40 "$RUNNER_TEMP/llama-server.log" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload experiment report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-001-local-model-report
+          path: shaman-results/test_001_local/
+          if-no-files-found: warn
+          retention-days: 30
