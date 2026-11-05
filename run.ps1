@@ -42,6 +42,18 @@ try {
         throw 'Test 001 runner was not found inside the verified archive.'
     }
 
+    # Gemini 3.8 no longer accepts deprecated sampling parameters.
+    # Keep the archive checksum check above intact, then patch the extracted
+    # temporary runner before execution.
+    $runnerSource = [System.IO.File]::ReadAllText($runner)
+    $deprecatedTemperature = [regex]::Matches($runnerSource, '(?m)^\s*"temperature":\s*0\.1,\r?\n')
+    if ($deprecatedTemperature.Count -ne 1) {
+        throw "Expected exactly one deprecated Gemini 3.8 temperature setting; found $($deprecatedTemperature.Count)."
+    }
+    $runnerSource = [regex]::Replace($runnerSource, '(?m)^\s*"temperature":\s*0\.1,\r?\n', '')
+    [System.IO.File]::WriteAllText($runner, $runnerSource, (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host 'Applied Gemini 3.8 compatibility fix: removed deprecated temperature parameter.'
+
     $runStamp = Get-Date -Format 'yyyyMMdd_HHmmss'
     $outputDir = Join-Path (Get-Location) ("shaman-results/test_001/run_$runStamp")
 
