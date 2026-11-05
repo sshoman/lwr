@@ -24,21 +24,13 @@ Memory conditions:
 
 The first run is a pilot across 12 independently seeded worlds. It is useful for finding failures in the method, not enough to establish a broad research claim. The report includes per-world results, confidence intervals, rejected claims, invalid test plans, model usage, and the sealed simulator truth. Do not quote aggregate results without the limitations in the report.
 
-## Run from Windows PowerShell
+## Run Test 001
 
-Use this one command from any folder:
+Test 001 now runs automatically in GitHub Actions when the experiment workflow is added or the experiment files change on `main`. It does not run on your Windows machine and does not require a Gemini API key.
 
-```powershell
-irm https://raw.githubusercontent.com/sshoman/lwr/main/run.ps1 | iex
-```
+The automated replication rebuilds and verifies the seven source chunks, then runs the original experiment runner against a local Qwen3-4B Q4_K_M model served by llama.cpp on a GitHub-hosted Ubuntu runner. Results are uploaded as a workflow artifact and the summary is added to the workflow page.
 
-The launcher fetches the small Test 001 runner directly from this repository as seven text chunks, checks the reconstructed archive against a fixed SHA-256 hash, and then runs it from a temporary folder. It does not clone the repository or require you to download a project manually.
-
-The Python runner asks for the Gemini API key using a hidden prompt if `GEMINI_API_KEY` or `GOOGLE_API_KEY` is not already set. The key is sent in the `x-goog-api-key` header. It is not saved to disk or printed. Results are written to `shaman-results/` in the folder where the command was run.
-
-Python 3.10+ is required. No pip packages are needed. The runner uses Python's standard library.
-
-Defaults: `gemini-3.8-flash`, 12 worlds, 12 held-out transfer decisions per world, four Shaman-selected challenge cases per world, and four random challenge cases per world. The run records token usage, rejected claims, and false promotions. A run stops early if the API reports quota or authentication failure. Partial records are saved as it proceeds.
+This is a different model from the original Gemini 3.8 plan. It tests the same simulator, claim generation, refutation selection, memory conditions, and deterministic evaluator, but its results must be labelled as the Qwen3 local-model replication and must not be pooled with Gemini results.
 
 ## What Test 001 can and cannot show
 
