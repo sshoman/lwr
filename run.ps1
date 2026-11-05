@@ -92,16 +92,19 @@ try {
 
     # Make preflight use the smallest valid request: contents only, no system
     # instruction and no generation settings.
-    $preflightAnchor = '        req = request.Request('
+    $preflightAnchor = @'
+        req = request.Request(
+            url, data=json.dumps(body).encode("utf-8"), method="POST",
+'@
     $minimalBodyPatch = @'
         if system == "__MINIMAL_PREFLIGHT__":
             body = {"contents": [{"role": "user", "parts": [{"text": user}]}]}
 '@
-    $firstReqIndex = $runnerSource.IndexOf($preflightAnchor)
-    if ($firstReqIndex -lt 0) {
-        throw 'Could not find the Gemini request construction point.'
+    $preflightIndex = $runnerSource.IndexOf($preflightAnchor)
+    if ($preflightIndex -lt 0) {
+        throw 'Could not find the Gemini POST request construction point.'
     }
-    $runnerSource = $runnerSource.Insert($firstReqIndex, $minimalBodyPatch)
+    $runnerSource = $runnerSource.Insert($preflightIndex, $minimalBodyPatch)
 
     $runnerSource = $runnerSource.Replace(
         'preflight = client.ask("Return JSON only.", "Return exactly {\\"ready\\":true}.", 80)',
